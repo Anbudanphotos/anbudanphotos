@@ -13,9 +13,176 @@
   <header class="text-center py-4">
     <h1 class="text-3xl font-bold text-violet-700">Anbudan Photos</h1>
   </header>
+
   <main class="max-w-4xl mx-auto bg-white p-6 rounded-2xl shadow-xl">
-    <!-- Simplified content for brevity -->
-    <p class="text-gray-700">Web app content goes here...</p>
+    <nav class="flex justify-around mb-6">
+      <button onclick="showPage('bookingPage')" class="bg-violet-500 px-4 py-2 text-white rounded">Booking</button>
+      <button onclick="showPage('incomePage')" class="bg-violet-500 px-4 py-2 text-white rounded">Income</button>
+      <button onclick="showPage('expensePage')" class="bg-violet-500 px-4 py-2 text-white rounded">Expense</button>
+      <button onclick="showPage('profitPage')" class="bg-violet-500 px-4 py-2 text-white rounded">Profit</button>
+    </nav>
+
+    <!-- Booking Page -->
+    <section id="bookingPage">
+      <h2 class="text-xl font-semibold text-violet-600 mb-2">Booking Entry</h2>
+      <input type="text" id="customerName" placeholder="Customer Name" class="w-full border p-2 rounded mb-2" />
+      <input type="date" id="bookingDate" class="w-full border p-2 rounded mb-2" />
+      <input type="number" id="totalBill" placeholder="Total Bill Amount" class="w-full border p-2 rounded mb-2" />
+      <button onclick="saveBooking()" class="bg-pink-500 text-white px-4 py-2 rounded">Save Booking</button>
+    </section>
+
+    <!-- Income Page -->
+    <section id="incomePage" class="hidden">
+      <h2 class="text-xl font-semibold text-violet-600 mb-2">Income Entry (Advance)</h2>
+      <select id="incomeCustomer" class="w-full border p-2 rounded mb-2"></select>
+      <input type="number" id="advanceAmount" placeholder="Advance Amount" class="w-full border p-2 rounded mb-2" />
+      <button onclick="saveIncome()" class="bg-pink-500 text-white px-4 py-2 rounded">Save Advance</button>
+    </section>
+
+    <!-- Expense Page -->
+    <section id="expensePage" class="hidden">
+      <h2 class="text-xl font-semibold text-violet-600 mb-2">Expense Entry</h2>
+      <select id="expenseCustomer" class="w-full border p-2 rounded mb-2"></select>
+      <select id="expenseCategory" class="w-full border p-2 rounded mb-2">
+        <option>Photographer</option>
+        <option>Album Design</option>
+        <option>Album Print</option>
+        <option>Other Expense</option>
+        <option>Videographer</option>
+        <option>Video Work</option>
+        <option>Video Pen Drive</option>
+      </select>
+      <input type="number" id="expenseAmount" placeholder="Amount" class="w-full border p-2 rounded mb-2" />
+      <button onclick="saveExpense()" class="bg-pink-500 text-white px-4 py-2 rounded">Save Expense</button>
+    </section>
+
+    <!-- Profit Page -->
+    <section id="profitPage" class="hidden">
+      <h2 class="text-xl font-semibold text-violet-600 mb-4">Monthly Profit</h2>
+      <input type="month" id="profitMonth" class="border p-2 rounded mb-2" />
+      <button onclick="showProfit()" class="bg-pink-500 text-white px-4 py-2 rounded">View Profit</button>
+      <button onclick="exportToExcel()" class="bg-green-600 text-white px-4 py-2 rounded ml-2">Export to Excel</button>
+      <div id="profitResult" class="mt-4 bg-gray-100 p-4 rounded"></div>
+    </section>
   </main>
+
+  <script>
+    const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+    const incomes = JSON.parse(localStorage.getItem('incomes') || '[]');
+    const expenses = JSON.parse(localStorage.getItem('expenses') || '[]');
+
+    function showPage(id) {
+      ['bookingPage', 'incomePage', 'expensePage', 'profitPage'].forEach(pid => {
+        document.getElementById(pid).classList.add('hidden');
+      });
+      document.getElementById(id).classList.remove('hidden');
+      updateCustomerDropdowns();
+    }
+
+    function updateCustomerDropdowns() {
+      const customers = bookings.map(b => b.name);
+      const unique = [...new Set(customers)];
+      const selects = [document.getElementById('incomeCustomer'), document.getElementById('expenseCustomer')];
+      selects.forEach(sel => {
+        sel.innerHTML = unique.map(c => `<option value="${c}">${c}</option>`).join('');
+      });
+    }
+
+    function saveBooking() {
+      bookings.push({
+        name: document.getElementById('customerName').value,
+        date: document.getElementById('bookingDate').value,
+        bill: parseFloat(document.getElementById('totalBill').value),
+      });
+      localStorage.setItem('bookings', JSON.stringify(bookings));
+      alert('Booking saved');
+      updateCustomerDropdowns();
+    }
+
+    function saveIncome() {
+      incomes.push({
+        name: document.getElementById('incomeCustomer').value,
+        amount: parseFloat(document.getElementById('advanceAmount').value),
+      });
+      localStorage.setItem('incomes', JSON.stringify(incomes));
+      alert('Advance saved');
+    }
+
+    function saveExpense() {
+      expenses.push({
+        name: document.getElementById('expenseCustomer').value,
+        category: document.getElementById('expenseCategory').value,
+        amount: parseFloat(document.getElementById('expenseAmount').value),
+      });
+      localStorage.setItem('expenses', JSON.stringify(expenses));
+      alert('Expense saved');
+    }
+
+    function showProfit() {
+      const month = document.getElementById('profitMonth').value;
+      const report = {};
+
+      bookings.forEach(b => {
+        if (b.date.startsWith(month)) {
+          if (!report[b.name]) report[b.name] = { bill: 0, expense: 0 };
+          report[b.name].bill += b.bill;
+        }
+      });
+
+      expenses.forEach(e => {
+        const booking = bookings.find(b => b.name === e.name);
+        if (booking && booking.date.startsWith(month)) {
+          if (!report[e.name]) report[e.name] = { bill: 0, expense: 0 };
+          report[e.name].expense += e.amount;
+        }
+      });
+
+      const output = Object.entries(report).map(([name, val]) => {
+        const profit = val.bill - val.expense;
+        return `<p><strong>${name}</strong>: Bill ₹${val.bill}, Expense ₹${val.expense}, <span class='text-green-600'>Profit ₹${profit}</span></p>`;
+      }).join('');
+
+      document.getElementById('profitResult').innerHTML = output || '<p>No data for selected month</p>';
+    }
+
+    function exportToExcel() {
+      const month = document.getElementById('profitMonth').value;
+      let csv = 'Customer,Bill,Expense,Profit\n';
+      const report = {};
+
+      bookings.forEach(b => {
+        if (b.date.startsWith(month)) {
+          if (!report[b.name]) report[b.name] = { bill: 0, expense: 0 };
+          report[b.name].bill += b.bill;
+        }
+      });
+
+      expenses.forEach(e => {
+        const booking = bookings.find(b => b.name === e.name);
+        if (booking && booking.date.startsWith(month)) {
+          if (!report[e.name]) report[e.name] = { bill: 0, expense: 0 };
+          report[e.name].expense += e.amount;
+        }
+      });
+
+      Object.entries(report).forEach(([name, val]) => {
+        const profit = val.bill - val.expense;
+        csv += `${name},${val.bill},${val.expense},${profit}\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Profit_Report_${month}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    window.onload = () => {
+      showPage('bookingPage');
+      updateCustomerDropdowns();
+    }
+  </script>
 </body>
 </html>
